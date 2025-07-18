@@ -2,9 +2,11 @@ name: CI
 
 on:
   pull_request:
-    branches: [ main ]
+    types:
+      - opened
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 env:
   AWS_REGION:   ${{ secrets.AWS_REGION }}
