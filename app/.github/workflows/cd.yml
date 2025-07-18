@@ -1,27 +1,20 @@
-name: CI
+name: CD
 
 on:
-  pull_request:
-    types:
-      - opened
   push:
     branches:
       - main
 
 env:
-  AWS_REGION:   ${{ secrets.AWS_REGION }}
-  ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
+  AWS_REGION:    ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY:  ${{ vars.ECR_REGISTRY }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-  IMAGE_TAG:    ${{ github.sha }}
 
 jobs:
-  build-and-push:
+  promote-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -32,11 +25,11 @@ jobs:
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build & push Docker image
-        working-directory: app
+      - name: Pull, Retag & Push Latest
         run: |
-          docker build \
-            --file Dockerfile \
-            --tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-            .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          TAG=${{ github.sha }}
+          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$TAG
+          docker tag \
+            $ECR_REGISTRY/$ECR_REPOSITORY:$TAG \
+            $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
