@@ -1,0 +1,13 @@
+services:
+  app:
+    build:
+      context: .
+      target: builder  # This is to use the builder stage with ts-node-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev

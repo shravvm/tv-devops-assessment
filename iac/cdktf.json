@@ -1,0 +1,30 @@
+{
+  "language": "typescript",
+  "app": "npx ts-node main.ts",
+  "projectId": "ed16a7a8-3b21-4427-bf91-0884ff80d667",
+  "sendCrashReports": false,
+  "terraformProviders": [
+    {
+      "name":    "aws",
+      "source":  "hashicorp/aws",
+      "version": "~> 5.0"
+    }
+  ],
+  "terraformModules": [],
+  "context": {
+    "excludeStackIdFromLogicalIds": false,
+    "allowSepCharsInLogicalIds": true
+  },
+  "terraform": {
+    "backendType": "s3",
+    "backend": {
+      "config": {
+        "bucket":         "sravanthi-iac-state",
+        "key":            "terraform.tfstate",
+        "region":         "us-east-1",
+        "dynamodb_table": "terraform-locks",
+        "encrypt":        true
+      }
+    }
+  }
+}
