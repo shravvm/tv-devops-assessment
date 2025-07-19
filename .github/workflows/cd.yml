@@ -11,7 +11,8 @@ on:
 
 env:
   AWS_REGION:     ${{ secrets.AWS_REGION }}
-  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  ECR_IMAGE:      ${{ vars.ECR_IMAGE }}
   ECS_CLUSTER:    assessment-ecs-cluster
   ECS_SERVICE:    assessment-app-service
   GH_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
@@ -60,14 +61,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ env.AWS_REGION }}
 
+      - name: Render new Task Definition
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: assessment-app-task
+          container-name:  app                   
+          image:           ${{ env.ECR_REPOSITORY }}/${{ env.ECR_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}
+
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
-          aws-region:    ${{ env.AWS_REGION }}
-          cluster:       ${{ env.ECS_CLUSTER }}
-          service:       ${{ env.ECS_SERVICE }}
-          image:         ${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.IMAGE_TAG }}
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          cluster:         ${{ env.ECS_CLUSTER }}
+          service:         ${{ env.ECS_SERVICE }}
+          wait-for-service-stability: true
 
       - name: Confirm deployment
         run: |
-          echo "Deployed $ECR_REPOSITORY:${{ steps.tag.outputs.IMAGE_TAG }} to $ECS_SERVICE"
+          echo "Deployed ${{ env.ECR_REPOSITORY }}/${{ env.ECR_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }} to $ECS_SERVICE"
