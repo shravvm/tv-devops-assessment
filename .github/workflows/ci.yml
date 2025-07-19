@@ -4,11 +4,14 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize]
+    paths:
+      - 'app/**'
   workflow_dispatch:
 
 env:
-  AWS_REGION: ${{ secrets.AWS_REGION }}
-  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  AWS_REGION:     ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  ECR_REGISTRY:      ${{ vars.ECR_REGISTRY }}
 
 jobs:
   build-and-push:

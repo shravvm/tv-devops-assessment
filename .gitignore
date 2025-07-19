@@ -1,3 +1,28 @@
-node_modules/
-dist/
+# macOS
+.DS_Store
+
+# Environment files
 .env
+.env.*
+
+# Logs
+*.log
+logs/
+
+# Editor settings
+.vscode/
+.idea/
+
+# Ignore node_modules at repo root
+node_modules/
+
+# Ignore build and test artifacts at repo root
+dist/
+coverage/
+
+# Local Docker/Compose override files
+*.local
+docker-compose.override.yml
+
+# OS-specific files
+Thumbs.db

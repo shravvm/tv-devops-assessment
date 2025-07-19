@@ -1,0 +1,127 @@
+name: "Update ECS Service"
+description: "Fetch current TD, patch image, register new revision & deploy to ECS"
+
+inputs:
+  aws_region:
+    description: 'AWS region'
+    required: true
+  ecr_registry:
+    description: 'ECR registry URI (e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com)'
+    required: true
+  ecr_repository:
+    description: 'ECR repository name'
+    required: true
+  cluster:
+    description: 'ECS cluster name'
+    required: true
+  service:
+    description: 'ECS service name'
+    required: true
+  image_tag:
+    description: 'Image tag to deploy'
+    required: true
+  container_name:
+    description: 'Container name in task definition'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Fetch current Task Definition ARN
+      id: fetch-td
+      shell: bash
+      run: |
+        arn=$(aws ecs describe-services \
+          --cluster "${{ inputs.cluster }}" \
+          --services "${{ inputs.service }}" \
+          --region  "${{ inputs.aws_region }}" \
+          --query 'services[0].taskDefinition' \
+          --output text)
+        echo "TD_ARN=$arn" >> $GITHUB_OUTPUT
+
+    - name: Dump Task Definition JSON
+      shell: bash
+      run: |
+        aws ecs describe-task-definition \
+          --task-definition "${{ steps.fetch-td.outputs.TD_ARN }}" \
+          --region "${{ inputs.aws_region }}" \
+          --output json > task-def.json
+
+    - name: Patch image in Task Definition
+      shell: bash
+      run: |
+        NEW_IMAGE="${{ inputs.ecr_registry }}/${{ inputs.ecr_repository }}:${{ inputs.image_tag }}"
+        # Use jq to override only the 'app' container image and preserve all other fields
+        jq --arg img "$NEW_IMAGE" --arg cn "${{ inputs.container_name }}" '
+          .taskDefinition as $td
+          | {
+              family: $td.family,
+              executionRoleArn: $td.executionRoleArn,
+              networkMode: $td.networkMode,
+              containerDefinitions:
+                ($td.containerDefinitions | map(
+                   if .name == $cn then .image = $img else . end
+                 )),
+              requiresCompatibilities: $td.requiresCompatibilities,
+              cpu: $td.cpu,
+              memory: $td.memory
+            }
+          | if $td.taskRoleArn then . + { taskRoleArn: $td.taskRoleArn } else . end
+        ' task-def.json > new-task-def.json
+
+    - name: Register new Task Definition revision
+      id: register
+      shell: bash
+      run: |
+        new_arn=$(aws ecs register-task-definition \
+          --cli-input-json file://new-task-def.json \
+          --region "${{ inputs.aws_region }}" \
+          --query 'taskDefinition.taskDefinitionArn' \
+          --output text)
+        echo "NEW_ARN=$new_arn" >> $GITHUB_OUTPUT
+
+    - name: Update ECS Service to new revision
+      id: update
+      shell: bash
+      run: |
+        svc_arn=$(aws ecs update-service \
+          --cluster "${{ inputs.cluster }}" \
+          --service "${{ inputs.service }}" \
+          --task-definition "${{ steps.register.outputs.NEW_ARN }}" \
+          --force-new-deployment \
+          --region "${{ inputs.aws_region }}" \
+          --query 'service.serviceArn' \
+          --output text)
+        echo "SERVICE_ARN=$svc_arn" >> $GITHUB_OUTPUT
+
+    - name: Wait for service stability
+      shell: bash
+      run: |
+        aws ecs wait services-stable \
+          --cluster "${{ inputs.cluster }}" \
+          --services "${{ inputs.service }}" \
+          --region "${{ inputs.aws_region }}"
+
+    - name: Verify deployment counts
+      id: verify
+      shell: bash
+      run: |
+        read desired running <<< $(aws ecs describe-services \
+          --cluster "${{ inputs.cluster }}" \
+          --services "${{ inputs.service }}" \
+          --region "${{ inputs.aws_region }}" \
+          --query 'services[0].[desiredCount,runningCount]' \
+          --output text)
+        if [[ "$desired" -ne "$running" ]]; then
+          echo "::error ::Deployment incomplete ($running/$desired running)"
+          exit 1
+        fi
+        echo "::notice ::Deployment successful ($running/$desired running)"
+        echo "RUNNING_COUNT=$running" >> $GITHUB_OUTPUT
+        echo "DESIRED_COUNT=$desired" >> $GITHUB_OUTPUT
+
+    - name: Confirmation
+      shell: bash
+      run: |
+        echo "Deployed ${{ inputs.ecr_registry }}/${{ inputs.ecr_repository }}:${{ inputs.image_tag }}"
+        echo "Service stable with ${{ steps.verify.outputs.RUNNING_COUNT }}/\${{ steps.verify.outputs.DESIRED_COUNT }} tasks running"
