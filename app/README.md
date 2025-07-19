@@ -1,7 +1,8 @@
 ## Local Setup
-1. Install dependencies: `npm install`
-2. Start dev server: `npm run dev`
-3. Test health endpoint: `curl http://localhost:3000/health`
+1. cd tv-devops-assessment/app
+2. Install dependencies: `npm install`
+3. Start dev server: `npm run dev`
+4. Test health endpoint: `curl http://localhost:3000/health`
 
 ## Docker Setup
 1. Build and run: `docker-compose up --build`
