@@ -61,8 +61,8 @@ jobs:
                 --workflow CI.yml \
                 --event pull_request \
                 --limit 20 \
-                --json runNumber,headSha \
-                | jq -r '[.[] | select(.headSha == "'"$HEAD_SHA"'")] | .[0] | "\(.runNumber)-\(.headSha)"')
+                --json number,headSha \
+                | jq -r '[.[] | select(.headSha == "'"$HEAD_SHA"'")] | .[0] | "\(.number)-\(.headSha)"')
               
               if [[ -z "$RUN_DATA" ]]; then
                 echo "No matching CI run found for head SHA $HEAD_SHA. Defaulting to latest."
