@@ -61,69 +61,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ env.AWS_REGION }}
 
-      - name: Fetch current TD ARN
-        id: fetch-td
-        run: |
-          arn=$(aws ecs describe-services \
-            --cluster "$ECS_CLUSTER" \
-            --services "$ECS_SERVICE" \
-            --region "$AWS_REGION" \
-            --query 'services[0].taskDefinition' \
-            --output text)
-          echo "TD_ARN=$arn" >> $GITHUB_OUTPUT
-
-      # Dump that TD JSON locally
-      - name: Describe Task Definition
-        run: |
-          aws ecs describe-task-definition \
-            --task-definition "${{ steps.fetch-td.outputs.TD_ARN }}" \
-            --region "$AWS_REGION" \
-            --output json \
-            > task-def.json
-
-      # Patch the container's image field
-      - name: Patch image in Task Definition
-        run: |
-          NEW_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          jq --arg img "$NEW_IMAGE" '
-            .taskDefinition as $td
-            | (
-                {
-                  family:                  $td.family,
-                  executionRoleArn:        $td.executionRoleArn,
-                  networkMode:             $td.networkMode,
-                  containerDefinitions: (
-                    $td.containerDefinitions
-                    | map(if .name=="app" then .image=$img else . end)
-                  ),
-                  requiresCompatibilities: $td.requiresCompatibilities,
-                  cpu:                     $td.cpu,
-                  memory:                  $td.memory
-                }
-              )
-            | if $td.taskRoleArn then . + { taskRoleArn: $td.taskRoleArn } else . end
-          ' task-def.json > new-task-def.json
-
-      # Register a new revision with the patched JSON
-      - name: Register new Task Definition
-        id: register
-        run: |
-          new_arn=$(aws ecs register-task-definition \
-            --cli-input-json "file://new-task-def.json" \
-            --region "$AWS_REGION" \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
-          echo "NEW_ARN=$new_arn" >> $GITHUB_OUTPUT
-
-      # Point service at the new revision
       - name: Update ECS Service
-        run: |
-          NEW_SVC_ARN=$(aws ecs update-service \
-            --cluster "$ECS_CLUSTER" \
-            --service "$ECS_SERVICE" \
-            --task-definition "${{ steps.register.outputs.NEW_ARN }}" \
-            --force-new-deployment \
-            --region "$AWS_REGION" \
-            --query 'service.serviceArn' \
-            --output text)
-          echo "Deployed '${NEW_IMAGE}' to ${ECS_SERVICE} → Service ARN: ${NEW_SVC_ARN}"
+        uses: ./.github/actions/update-ecs-service
+        with:
+          aws_region:     ${{ env.AWS_REGION }}
+          ecr_registry:   ${{ env.ECR_REGISTRY }}
+          ecr_repository: ${{ env.ECR_REPOSITORY }}
+          cluster:        ${{ env.ECS_CLUSTER }}
+          service:        ${{ env.ECS_SERVICE }}
+          image_tag:      ${{ steps.tag.outputs.IMAGE_TAG }}
+          container_name: app
