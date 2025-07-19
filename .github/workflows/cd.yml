@@ -18,6 +18,7 @@ env:
   ECS_CLUSTER:    assessment-ecs-cluster
   ECS_SERVICE:    assessment-app-service
   GH_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
+  CONTAINER_NAME: app
 
 permissions:
   actions: read
