@@ -45,6 +45,7 @@ export class EcsModule extends Construct {
       taskDefinition: taskDef.arn,
       launchType:     "FARGATE",
       desiredCount:   1,
+      healthCheckGracePeriodSeconds: 60,
       networkConfiguration: {
         subnets:        props.subnetIds,
         securityGroups: [props.securityGroupId],

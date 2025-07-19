@@ -14,17 +14,5 @@
   "context": {
     "excludeStackIdFromLogicalIds": false,
     "allowSepCharsInLogicalIds": true
-  },
-  "terraform": {
-    "backendType": "s3",
-    "backend": {
-      "config": {
-        "bucket":         "sravanthi-iac-state",
-        "key":            "terraform.tfstate",
-        "region":         "us-east-1",
-        "dynamodb_table": "terraform-locks",
-        "encrypt":        true
-      }
-    }
   }
 }

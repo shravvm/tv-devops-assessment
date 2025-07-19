@@ -1,10 +1,10 @@
-import { App, TerraformStack } from "cdktf";
+import { App, TerraformStack, S3Backend } from "cdktf";
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { Eip } from "@cdktf/provider-aws/lib/eip";
 import { NatGateway } from "@cdktf/provider-aws/lib/nat-gateway";
 import { Route } from "@cdktf/provider-aws/lib/route";
 
-// 1) Remote‑state backend
+//1) Remote‑state backend
 import {
   StateBucketModule,
   StateLockTableModule
@@ -32,14 +32,14 @@ export class MyStack extends TerraformStack {
   constructor(scope: App, id: string) {
     super(scope, id);
 
-    // ─── AWS PROVIDER ─────────────────────
+    //AWS PROVIDER
     new AwsProvider(this, "aws", { region: "us-east-1" });
 
-    // ─── STATE BACKEND ────────────────────
+    //STATE BACKEND
     new StateBucketModule(this, "state-bucket");
     new StateLockTableModule(this, "state-lock-table");
 
-    // ─── NETWORK ─────────────────────────
+    //NETWORK
     const vpc = new VpcModule(this, "vpc");
     const subnets = new SubnetModule(this, "subnets", {
       vpcId: vpc.vpcId,
@@ -51,7 +51,7 @@ export class MyStack extends TerraformStack {
       privateAvailabilityZones: ["us-east-1b"],
     });
 
-    // ─── NAT & EIP ───────────────────────
+    //NAT & EIP
     const eip = new Eip(this, "NatEip", {
       domain: "vpc",
       tags: { Name: "assessment-nat-eip" }
@@ -67,10 +67,10 @@ export class MyStack extends TerraformStack {
       natGatewayId: nat.id
     });
 
-    // ─── SECURITY GROUP ──────────────────
+    //SECURITY GROUP
     const sg = new SecurityGroupModule(this, "security-group", vpc.vpcId);
 
-    // ─── COMPUTE ─────────────────────────
+    //COMPUTE
     const ecr = new EcrModule(this, "ecr");
     const iam = new IamModule(this, "iam");
     const alb = new AlbModule(this, "alb", {
@@ -88,7 +88,7 @@ export class MyStack extends TerraformStack {
       targetGroupArn: alb.targetGroupArn
     });
 
-    // ─── ROUTE 53 ────────────────────────
+    //ROUTE 53
     new Route53Module(this, "route53", {
       domainName: "assessment.com",
       albDnsName: alb.loadBalancerDnsName,
@@ -98,5 +98,12 @@ export class MyStack extends TerraformStack {
 }
 
 const app = new App();
-new MyStack(app, "tv-devops-assessment");
+const stack = new MyStack(app, "tv-devops-assessment");
+new S3Backend(stack, {
+     bucket:        "sravanthi-iac-state",
+     key:           "terraform.tfstate",
+     region:        "us-east-1",
+     dynamodbTable: "terraform-locks",
+     encrypt:       true,
+   });
 app.synth();

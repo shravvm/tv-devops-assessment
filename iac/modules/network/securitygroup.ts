@@ -28,7 +28,7 @@ export class SecurityGroupModule extends Construct {
       name: "assessment-ecs-sg",
       description: "Allow inbound from ALB on app port, all outbound",
       ingress: [
-        { fromPort: 8080, toPort: 8080, protocol: "tcp", securityGroups: [albSg.id] }
+        { fromPort: 3000, toPort: 3000, protocol: "tcp", securityGroups: [albSg.id] }
       ],
       egress: [{ fromPort: 0, toPort: 0, protocol: "-1", cidrBlocks: ["0.0.0.0/0"] }],
       tags: { Name: "assessment-ecs-sg" }
