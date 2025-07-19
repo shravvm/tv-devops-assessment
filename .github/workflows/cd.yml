@@ -58,11 +58,11 @@ jobs:
               # Find the latest CI run matching the head SHA (event pull_request, no branch filter)
               RUN_DATA=$(gh run list \
                 -R ${{ github.repository }} \
-                --workflow ci.yml \
+                --workflow CI \
                 --event pull_request \
                 --limit 20 \
                 --json number,headSha \
-                | jq -r '[.[] | select(.headSha == "'"$HEAD_SHA"'")] | .[0] | "\(.number)-\(.headSha)"')
+                | jq -r '[.[] | select(.headSha == "'"$HEAD_SHA"'")] | .[0] | "\(.number)"')
               
               if [[ -z "$RUN_DATA" ]]; then
                 echo "No matching CI run found for head SHA $HEAD_SHA. Defaulting to latest."
@@ -96,6 +96,9 @@ jobs:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Promote image to latest
         if: env.PROMOTE_LATEST == 'true'
