@@ -8,7 +8,7 @@
 1. Build and run: `docker-compose up --build`
 2. Test health endpoint: `curl http://localhost:3000/health`
 
-# Local setup output
+## Local setup output
 
 ![Alt text](image.png)
 
