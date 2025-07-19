@@ -49,24 +49,24 @@ npm install -g cdktf-cli
 
 cd iac/
 
-# Create a local .env file from the example
+### Create a local .env file from the example
 cp .env.example .env
 
-# Install required dependencies
+### Install required dependencies
 npm install
 
-# Load environment variables (if not using dotenv-cli)
+### Load environment variables (if not using dotenv-cli)
 export $(cat .env | xargs)
 
 ## Deploy Infrastructure to AWS
 
-# Generate provider bindings
+### Generate provider bindings
 cdktf get
 
-# Synthesize Terraform JSON config
+### Synthesize Terraform JSON config
 cdktf synth
 
-# Deploy to AWS
+### Deploy to AWS
 cdktf deploy
 
 ![Alt text](cdktf.png)

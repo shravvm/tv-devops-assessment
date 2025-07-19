@@ -40,7 +40,7 @@ CD Workflow (cd.yml)
 Both workflows can also be run manually with custom image tags via workflow_dispatch.
 
 
-## GitHub Secrets Required
+### GitHub Secrets Required
 
 | Name                    | Description                       |
 | ----------------------- | --------------------------------- |
