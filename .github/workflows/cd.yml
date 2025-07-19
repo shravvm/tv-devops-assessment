@@ -36,27 +36,56 @@ jobs:
           sudo apt-get install -y jq
 
       - name: Determine tag
-        id: tag
         run: |
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "IMAGE_TAG=latest" >> "$GITHUB_OUTPUT"
-            echo "PROMOTE_LATEST=false" >> "$GITHUB_OUTPUT"
+            # Check if this push is from a PR merge
+            COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+            if [[ "$COMMIT_MESSAGE" =~ ^Merge\ pull\ request\ \#[0-9]+\ from ]]; then
+              # Parse PR number
+              PR_NUM=$(echo "$COMMIT_MESSAGE" | sed -n 's/^Merge pull request #\([0-9]*\).*/\1/p')
+              if [[ -z "$PR_NUM" ]]; then
+                echo "Failed to parse PR number from merge commit message."
+                exit 1
+              fi
+
+              # Get head SHA of the merged PR
+              HEAD_SHA=$(gh pr view "$PR_NUM" --json headRefOid --jq '.headRefOid')
+              if [[ -z "$HEAD_SHA" ]]; then
+                echo "Failed to fetch head SHA for PR #$PR_NUM."
+                exit 1
+              fi
+
+              # Find the latest CI run matching the head SHA (event pull_request, no branch filter)
+              RUN_DATA=$(gh run list \
+                -R ${{ github.repository }} \
+                --workflow CI.yml \
+                --event pull_request \
+                --limit 20 \
+                --json runNumber,headSha \
+                | jq -r '[.[] | select(.headSha == "'"$HEAD_SHA"'")] | .[0] | "\(.runNumber)-\(.headSha)"')
+              
+              if [[ -z "$RUN_DATA" ]]; then
+                echo "No matching CI run found for head SHA $HEAD_SHA. Defaulting to latest."
+                echo "IMAGE_TAG=latest" >> "$GITHUB_ENV"
+                echo "PROMOTE_LATEST=false" >> "$GITHUB_ENV"
+              else
+                echo "IMAGE_TAG=$RUN_DATA" >> "$GITHUB_ENV"
+                echo "PROMOTE_LATEST=true" >> "$GITHUB_ENV"
+              fi
+            else
+              # Non-merge push: use latest directly
+              echo "IMAGE_TAG=latest" >> "$GITHUB_ENV"
+              echo "PROMOTE_LATEST=false" >> "$GITHUB_ENV"
+            fi
 
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.image_tag }}" != "" ]]; then
-            echo "IMAGE_TAG=${{ github.event.inputs.image_tag }}" >> "$GITHUB_OUTPUT"
-            echo "PROMOTE_LATEST=false" >> "$GITHUB_OUTPUT"
+            echo "IMAGE_TAG=${{ github.event.inputs.image_tag }}" >> "$GITHUB_ENV"
+            echo "PROMOTE_LATEST=false" >> "$GITHUB_ENV"
 
           else
-            TAG=$(gh run list \
-              -R ${{ github.repository }} \
-              --workflow CI.yml \
-              --branch main \
-              --event pull_request \
-              --limit 1 \
-              --json runNumber,headSha \
-              | jq -r '.[0] | "\(.runNumber)-\(.headSha)"')
-            echo "IMAGE_TAG=$TAG" >> "$GITHUB_OUTPUT"
-            echo "PROMOTE_LATEST=true" >> "$GITHUB_OUTPUT"
+            # Dispatch without tag: fail to enforce providing input
+            echo "Workflow dispatch requires an image_tag input."
+            exit 1
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,24 +98,19 @@ jobs:
           aws-region:            ${{ env.AWS_REGION }}
 
       - name: Promote image to latest
-        if: steps.tag.outputs.PROMOTE_LATEST == 'true'
+        if: env.PROMOTE_LATEST == 'true'
         run: |
-          echo "Pulling image: $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.tag.outputs.IMAGE_TAG }}"
-          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.tag.outputs.IMAGE_TAG }}
-
-          echo "Tagging image as latest"
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.tag.outputs.IMAGE_TAG }} $ECR_REGISTRY/$ECR_REPOSITORY:latest
-
-          echo "Pushing image with latest tag"
+          echo "Pulling image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Set final image tag
-        id: final_tag
         run: |
-          if [[ "${{ steps.tag.outputs.PROMOTE_LATEST }}" == "true" ]]; then
-            echo "image_tag=latest" >> "$GITHUB_OUTPUT"
+          if [[ "$PROMOTE_LATEST" == "true" ]]; then
+            echo "FINAL_IMAGE_TAG=latest" >> "$GITHUB_ENV"
           else
-            echo "image_tag=${{ steps.tag.outputs.IMAGE_TAG }}" >> "$GITHUB_OUTPUT"
+            echo "FINAL_IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
           fi
 
       - name: Update ECS Service
@@ -97,5 +121,5 @@ jobs:
           ecr_repository: ${{ env.ECR_REPOSITORY }}
           cluster:        ${{ env.ECS_CLUSTER }}
           service:        ${{ env.ECS_SERVICE }}
-          image_tag:      ${{ steps.final_tag.outputs.image_tag }}
+          image_tag:      ${{ env.FINAL_IMAGE_TAG }}
           container_name: app
