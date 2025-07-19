@@ -61,13 +61,23 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ env.AWS_REGION }}
 
+      - name: Fetch current Task Definition ARN
+        id: fetch-td
+        run: |
+          ARN=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          echo "TD_ARN=$ARN" >> $GITHUB_OUTPUT
+
       - name: Render new Task Definition
         id: render
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: assessment-app-task
-          container-name:  app                   
-          image:           ${{ env.ECR_REPOSITORY }}/${{ env.ECR_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}
+          task-definition: ${{ steps.fetch-td.outputs.TD_ARN }}
+          container-name:  app
+          image:           ${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.IMAGE_TAG }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
