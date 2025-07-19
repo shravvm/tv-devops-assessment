@@ -7,8 +7,8 @@ This repo contains my solution for the TurboVets DevOps Assessment. It includes:
 
 ##  Repo Structure
 
-├── app/ # Express.js app with Docker, Compose & GitHub Actions
-└── iac/ # Infrastructure as Code using CDK for Terraform
+- app/ # Express.js app with Docker, Compose & GitHub Actions
+- iac/ # Infrastructure as Code using CDK for Terraform
 
 
 ## 📽 Walkthrough Video
@@ -35,7 +35,7 @@ This repo contains my solution for the TurboVets DevOps Assessment. It includes:
 
 This project follows a hybrid deployment approach that separates infrastructure provisioning from application deployment:
 
-  - **Initial Infra Setup**: The initial provisioning of core AWS infrastructure — including:
+  - **Initial Infra Setup**: The initial provisioning of core AWS infrastructure including:
 
 VPC and subnets, Security groups,ECR repository, ECS cluster and service,Load balancer, IAM roles is handled manually using cdktf deploy. Refer to README.md in iac/ folder
 
