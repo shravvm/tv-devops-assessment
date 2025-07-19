@@ -131,7 +131,7 @@ jobs:
         if: ${{ success() }}
         run: |
           aws ssm put-parameter \
-            --name "/assessment/image_tag" \
+            --name "/assessment/image-tag" \
             --value "$FINAL_IMAGE_TAG" \
             --type String \
             --overwrite \
