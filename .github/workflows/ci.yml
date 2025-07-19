@@ -32,12 +32,12 @@ jobs:
       - name: Set up Docker Compose and test health
         run: |
           cd app
-          docker-compose up -d --build
+          docker compose up -d --build
           echo "⏳ Waiting for app to become healthy..."
           if ! timeout 15s bash -c 'until curl -sf http://localhost:3000/health; do sleep 3; done'; then
             echo "App failed health check"
-            docker-compose logs
-            docker-compose down
+            docker compose logs
+            docker compose down
             exit 1
           fi
           echo "App is healthy"
