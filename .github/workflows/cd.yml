@@ -14,7 +14,7 @@ on:
 env:
   AWS_REGION:     ${{ secrets.AWS_REGION }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-  ECR_REGISTRY:      ${{ vars.ECR_REGISTRY }}
+  ECR_REGISTRY:   ${{ vars.ECR_REGISTRY }}
   ECS_CLUSTER:    assessment-ecs-cluster
   ECS_SERVICE:    assessment-app-service
   GH_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
@@ -39,12 +39,12 @@ jobs:
         id: tag
         run: |
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "IMAGE_TAG=latest" >> $GITHUB_OUTPUT
-            echo "PROMOTE_LATEST=false" >> $GITHUB_OUTPUT
+            echo "IMAGE_TAG=latest" >> "$GITHUB_OUTPUT"
+            echo "PROMOTE_LATEST=false" >> "$GITHUB_OUTPUT"
 
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.image_tag }}" != "" ]]; then
-            echo "IMAGE_TAG=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
-            echo "PROMOTE_LATEST=false" >> $GITHUB_OUTPUT
+            echo "IMAGE_TAG=${{ github.event.inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+            echo "PROMOTE_LATEST=false" >> "$GITHUB_OUTPUT"
 
           else
             TAG=$(gh run list \
@@ -55,16 +55,11 @@ jobs:
               --limit 1 \
               --json runNumber,headSha \
               | jq -r '.[0] | "\(.runNumber)-\(.headSha)"')
-            echo "IMAGE_TAG=$TAG" >> $GITHUB_OUTPUT
-            echo "PROMOTE_LATEST=true" >> $GITHUB_OUTPUT
+            echo "IMAGE_TAG=$TAG" >> "$GITHUB_OUTPUT"
+            echo "PROMOTE_LATEST=true" >> "$GITHUB_OUTPUT"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        outputs:
-          IMAGE_TAG: ${{ steps.tag.outputs.IMAGE_TAG }}
-          PROMOTE_LATEST: ${{ steps.tag.outputs.PROMOTE_LATEST }}
-
-
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -72,7 +67,7 @@ jobs:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ env.AWS_REGION }}
-      
+
       - name: Promote image to latest
         if: steps.tag.outputs.PROMOTE_LATEST == 'true'
         run: |
@@ -84,8 +79,15 @@ jobs:
 
           echo "Pushing image with latest tag"
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          
-          
+
+      - name: Set final image tag
+        id: final_tag
+        run: |
+          if [[ "${{ steps.tag.outputs.PROMOTE_LATEST }}" == "true" ]]; then
+            echo "image_tag=latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "image_tag=${{ steps.tag.outputs.IMAGE_TAG }}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Update ECS Service
         uses: ./.github/actions/update-ecs-service
@@ -95,5 +97,5 @@ jobs:
           ecr_repository: ${{ env.ECR_REPOSITORY }}
           cluster:        ${{ env.ECS_CLUSTER }}
           service:        ${{ env.ECS_SERVICE }}
-          image_tag:      ${{ steps.tag.outputs.PROMOTE_LATEST == 'true' && 'latest' || steps.tag.outputs.IMAGE_TAG }}
+          image_tag:      ${{ steps.final_tag.outputs.image_tag }}
           container_name: app
