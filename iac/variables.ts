@@ -5,6 +5,7 @@ function parseList(value: string | undefined, fallback: string[]): string[] {
 export const config = {
     awsRegion: process.env.AWS_REGION || "us-east-1",
     domainName: process.env.DOMAIN_NAME || "assessment.com",
+    imageTag: process.env.IMAGE_TAG || "latest",
   
     backend: {
       bucket: process.env.BACKEND_BUCKET || "sravanthi-iac-state",

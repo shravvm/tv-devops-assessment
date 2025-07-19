@@ -3,7 +3,6 @@ import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { Eip } from "@cdktf/provider-aws/lib/eip";
 import { NatGateway } from "@cdktf/provider-aws/lib/nat-gateway";
 import { Route } from "@cdktf/provider-aws/lib/route";
-import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
 
 import {
   StateBucketModule,
@@ -26,28 +25,6 @@ import {
 import { Route53Module } from "./modules/route53";
 import { config } from "./variables";
 
-export async function getImageTagFromSSM(): Promise<string> {
-  const ssm = new SSMClient({ region: "us-east-1" }); // or your region
-
-  const command = new GetParameterCommand({
-    Name: "/assessment/image-tag",
-    WithDecryption: true,
-  });
-
-  try {
-    const response = await ssm.send(command);
-    const value = response.Parameter?.Value;
-
-    if (!value) {
-      throw new Error("Image tag not found in SSM Parameter Store");
-    }
-
-    return value;
-  } catch (error) {
-    console.error("Failed to get image tag from SSM:", error);
-    throw error;
-  }
-}
 export class MyStack extends TerraformStack {
   constructor(scope: App, id: string, imageTag: string) {
     super(scope, id);
@@ -131,9 +108,9 @@ export class MyStack extends TerraformStack {
   }
 }
 
-async function main() {
+function main() {
   const app = new App();
-  const imageTag = await getImageTagFromSSM();  // your async function
+  const imageTag = process.env.IMAGE_TAG || "latest";
   const stack = new MyStack(app, "tv-devops-assessment", imageTag);
 
 new S3Backend(stack, {

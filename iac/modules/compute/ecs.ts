@@ -54,9 +54,10 @@ export class EcsModule extends Construct {
         },
       ]),
       tags: { Name: "assessment-app-task" },
+      
     });
 
-    new EcsService(this, "Service", {
+    const ecsService = new EcsService (this, "Service", {
       name: "assessment-app-service",
       cluster: cluster.arn,
       taskDefinition: taskDef.arn,
@@ -77,5 +78,7 @@ export class EcsModule extends Construct {
       ],
       tags: { Name: "assessment-app-service" },
     });
+    ecsService.addOverride("lifecycle.ignore_changes", ["task_definition"]);
+    
   }
 }
