@@ -1,52 +1,138 @@
-name: CI
+name: CD
 
 on:
-  pull_request:
+  push:
     branches: [main]
-    types: [opened, synchronize]
     paths:
       - 'app/**'
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy'
+        required: false
 
 env:
   AWS_REGION:     ${{ secrets.AWS_REGION }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-  ECR_REGISTRY:      ${{ vars.ECR_REGISTRY }}
+  ECR_REGISTRY:   ${{ vars.ECR_REGISTRY }}
+  ECS_CLUSTER:    assessment-ecs-cluster
+  ECS_SERVICE:    assessment-app-service
+  GH_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
+
+permissions:
+  actions: read
 
 jobs:
-  build-and-push:
+  deploy:
     runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.build.outputs.image_tag }}
+
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Determine tag
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # Check if this push is from a PR merge
+            COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+            if [[ "$COMMIT_MESSAGE" =~ ^Merge\ pull\ request\ \#[0-9]+\ from ]]; then
+              # Parse PR number
+              PR_NUM=$(echo "$COMMIT_MESSAGE" | sed -n 's/^Merge pull request #\([0-9]*\).*/\1/p')
+              if [[ -z "$PR_NUM" ]]; then
+                echo "Failed to parse PR number from merge commit message."
+                exit 1
+              fi
+
+              # Get head SHA of the merged PR
+              HEAD_SHA=$(gh pr view "$PR_NUM" --json headRefOid --jq '.headRefOid')
+              if [[ -z "$HEAD_SHA" ]]; then
+                echo "Failed to fetch head SHA for PR #$PR_NUM."
+                exit 1
+              fi
+
+              # Find the latest CI run matching the head SHA (event pull_request, no branch filter)
+              RUN_DATA=$(gh run list \
+                -R ${{ github.repository }} \
+                --workflow CI \
+                --event pull_request \
+                --limit 20 \
+                --json number,headSha \
+                | jq -r '[.[] | select(.headSha == "'"$HEAD_SHA"'")] | .[0] | "\(.number)"')
+              
+              if [[ -z "$RUN_DATA" ]]; then
+                echo "No matching CI run found for head SHA $HEAD_SHA. Defaulting to latest."
+                echo "IMAGE_TAG=latest" >> "$GITHUB_ENV"
+                echo "PROMOTE_LATEST=false" >> "$GITHUB_ENV"
+              else
+                echo "IMAGE_TAG=$RUN_DATA" >> "$GITHUB_ENV"
+                echo "PROMOTE_LATEST=true" >> "$GITHUB_ENV"
+              fi
+            else
+              # Non-merge push: use latest directly
+              echo "IMAGE_TAG=latest" >> "$GITHUB_ENV"
+              echo "PROMOTE_LATEST=false" >> "$GITHUB_ENV"
+            fi
+
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.image_tag }}" != "" ]]; then
+            echo "IMAGE_TAG=${{ github.event.inputs.image_tag }}" >> "$GITHUB_ENV"
+            echo "PROMOTE_LATEST=false" >> "$GITHUB_ENV"
+
+          else
+            # Dispatch without tag: fail to enforce providing input
+            echo "Workflow dispatch requires an image_tag input."
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region:            ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Promote image to latest
+        if: env.PROMOTE_LATEST == 'true'
+        run: |
+          echo "Pulling image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Set final image tag
+        run: |
+          if [[ "$PROMOTE_LATEST" == "true" ]]; then
+            echo "FINAL_IMAGE_TAG=latest" >> "$GITHUB_ENV"
+          else
+            echo "FINAL_IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          fi
+
+      - name: Update ECS Service
+        uses: ./.github/actions/update-ecs-service
         with:
-          mask-password: true
-
-      - id: build
-        name: Build and tag Docker image
+          aws_region:     ${{ env.AWS_REGION }}
+          ecr_registry:   ${{ env.ECR_REGISTRY }}
+          ecr_repository: ${{ env.ECR_REPOSITORY }}
+          cluster:        ${{ env.ECS_CLUSTER }}
+          service:        ${{ env.ECS_SERVICE }}
+          image_tag:      ${{ env.FINAL_IMAGE_TAG }}
+          container_name: app
+      
+      - name: Update SSM Parameter with final image tag
+        if: ${{ success() }}
         run: |
-          # Use run number and commit SHA for image tag
-          IMAGE_TAG="${{ github.run_number }}"
-          echo "Building image with tag $IMAGE_TAG"
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./app
-          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-
-      - name: Push Docker image to ECR
-        run: |
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.build.outputs.image_tag }}
-          
-      - name: Confirm push
-        run: |
-          echo "Built and pushed image $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.build.outputs.image_tag }} to ECR"
+          aws ssm put-parameter \
+            --name "/assessment/image_tag" \
+            --value "$FINAL_IMAGE_TAG" \
+            --type String \
+            --overwrite \
+            --region ${{ env.AWS_REGION }}
