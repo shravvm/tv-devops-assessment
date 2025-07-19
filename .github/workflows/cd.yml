@@ -1,4 +1,6 @@
+```yaml
 name: CD
+
 on:
   push:
     branches: [main]
@@ -9,10 +11,11 @@ on:
         required: false
 
 env:
-  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_REGION:     ${{ secrets.AWS_REGION }}
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
   ECS_CLUSTER:    assessment-ecs-cluster
   ECS_SERVICE:    assessment-app-service
+  GH_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
 
 permissions:
   actions: read
@@ -25,9 +28,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up GitHub CLI
-        uses: actions/setup-gh@v2
-
       - name: Install jq
         run: |
           sudo apt-get update
@@ -37,16 +37,13 @@ jobs:
         id: tag
         run: |
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            # On merge to main, deploy 'latest'
             echo "IMAGE_TAG=latest" >> $GITHUB_OUTPUT
           elif [[ "${{ github.event.inputs.image_tag }}" != "" ]]; then
-            # Manual run with provided tag
             echo "IMAGE_TAG=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
           else
-            # Fetch tag from the CI run that built PR merged into main
             TAG=$(gh run list \
               -R ${{ github.repository }} \
-              --workflow ci.yml \
+              --workflow CI.yml \
               --branch main \
               --event pull_request \
               --limit 1 \
@@ -54,13 +51,15 @@ jobs:
               | jq -r '.[0] | "\(.runNumber)-\(.headSha)"')
             echo "IMAGE_TAG=$TAG" >> $GITHUB_OUTPUT
           fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region:            ${{ env.AWS_REGION }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
@@ -69,3 +68,8 @@ jobs:
           cluster:       ${{ env.ECS_CLUSTER }}
           service:       ${{ env.ECS_SERVICE }}
           image:         ${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.IMAGE_TAG }}
+
+      - name: Confirm deployment
+        run: |
+          echo "Deployed $ECR_REPOSITORY:${{ steps.tag.outputs.IMAGE_TAG }} to $ECS_SERVICE"
+```
