@@ -58,10 +58,12 @@ jobs:
             echo "IMAGE_TAG=$TAG" >> $GITHUB_OUTPUT
             echo "PROMOTE_LATEST=true" >> $GITHUB_OUTPUT
           fi
-          echo "IMAGE_TAG: ${{ steps.tag.outputs.IMAGE_TAG }}"
-          echo "PROMOTE_LATEST: ${{ steps.tag.outputs.PROMOTE_LATEST }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        outputs:
+          IMAGE_TAG: ${{ steps.tag.outputs.IMAGE_TAG }}
+          PROMOTE_LATEST: ${{ steps.tag.outputs.PROMOTE_LATEST }}
+
 
 
       - name: Configure AWS credentials
