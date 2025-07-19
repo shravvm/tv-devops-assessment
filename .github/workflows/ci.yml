@@ -28,6 +28,8 @@ jobs:
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
+        with:
+          mask-password: true
 
       - id: build
         name: Build and tag Docker image
@@ -41,3 +43,7 @@ jobs:
       - name: Push Docker image to ECR
         run: |
           docker push $ECR_REPOSITORY:${{ steps.build.outputs.image_tag }}
+          
+      - name: Confirm push
+        run: |
+          echo "Built and pushed image $ECR_REPOSITORY:${{ steps.build.outputs.image_tag }} to ECR"
