@@ -118,14 +118,12 @@ jobs:
       # Point service at the new revision
       - name: Update ECS Service
         run: |
-          aws ecs update-service \
+          NEW_SVC_ARN=$(aws ecs update-service \
             --cluster "$ECS_CLUSTER" \
             --service "$ECS_SERVICE" \
             --task-definition "${{ steps.register.outputs.NEW_ARN }}" \
             --force-new-deployment \
-            --region "$AWS_REGION"
-
-      # Confirmation
-      - name: Confirm deployment
-        run: |
-          echo "Deployed $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG to $ECS_SERVICE"
+            --region "$AWS_REGION" \
+            --query 'service.serviceArn' \
+            --output text)
+          echo "Deployed '${NEW_IMAGE}' to ${ECS_SERVICE} → Service ARN: ${NEW_SVC_ARN}"
