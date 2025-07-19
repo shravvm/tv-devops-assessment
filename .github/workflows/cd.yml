@@ -41,9 +41,11 @@ jobs:
           if [[ "${{ github.event_name }}" == "push" ]]; then
             echo "IMAGE_TAG=latest" >> $GITHUB_OUTPUT
             echo "PROMOTE_LATEST=false" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event.inputs.image_tag }}" != "" ]]; then
+
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.image_tag }}" != "" ]]; then
             echo "IMAGE_TAG=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
             echo "PROMOTE_LATEST=false" >> $GITHUB_OUTPUT
+
           else
             TAG=$(gh run list \
               -R ${{ github.repository }} \
@@ -56,6 +58,8 @@ jobs:
             echo "IMAGE_TAG=$TAG" >> $GITHUB_OUTPUT
             echo "PROMOTE_LATEST=true" >> $GITHUB_OUTPUT
           fi
+          echo "IMAGE_TAG: ${{ steps.tag.outputs.IMAGE_TAG }}"
+          echo "PROMOTE_LATEST: ${{ steps.tag.outputs.PROMOTE_LATEST }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -70,10 +74,16 @@ jobs:
       - name: Promote image to latest
         if: steps.tag.outputs.PROMOTE_LATEST == 'true'
         run: |
-          echo "Promoting $ECR_REPOSITORY:${{ steps.tag.outputs.IMAGE_TAG }} to latest"
+          echo "Pulling image: $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.tag.outputs.IMAGE_TAG }}"
           docker pull $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.tag.outputs.IMAGE_TAG }}
+
+          echo "Tagging image as latest"
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.tag.outputs.IMAGE_TAG }} $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+          echo "Pushing image with latest tag"
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          
+          
 
       - name: Update ECS Service
         uses: ./.github/actions/update-ecs-service
@@ -83,5 +93,5 @@ jobs:
           ecr_repository: ${{ env.ECR_REPOSITORY }}
           cluster:        ${{ env.ECS_CLUSTER }}
           service:        ${{ env.ECS_SERVICE }}
-          image_tag:      ${{ steps.tag.outputs.IMAGE_TAG }}
+          image_tag:      ${{ steps.tag.outputs.PROMOTE_LATEST == 'true' && 'latest' || steps.tag.outputs.IMAGE_TAG }}
           container_name: app
