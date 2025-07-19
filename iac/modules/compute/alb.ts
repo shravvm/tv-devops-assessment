@@ -39,6 +39,16 @@ export class AlbModule extends Construct {
       targetType: "ip",
       vpcId:      props.vpcId,
       tags:       { Name: "assessment-tg" },
+      healthCheck: {
+        protocol:           "HTTP",
+        port:               "traffic-port",
+        path:               "/health",
+        healthyThreshold:   2,
+        unhealthyThreshold: 3,
+        interval:    30,
+        timeout:     5,
+        matcher:            "200-399",
+      },
     });
     this.targetGroupArn = tg.arn;
 

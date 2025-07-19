@@ -40,13 +40,13 @@ jobs:
           # Use run number and commit SHA for image tag
           IMAGE_TAG="${{ github.run_number }}-${{ github.sha }}"
           echo "Building image with tag $IMAGE_TAG"
-          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./app
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Push Docker image to ECR
         run: |
-          docker push $ECR_REPOSITORY:${{ steps.build.outputs.image_tag }}
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.build.outputs.image_tag }}
           
       - name: Confirm push
         run: |
-          echo "Built and pushed image $ECR_REPOSITORY:${{ steps.build.outputs.image_tag }} to ECR"
+          echo "Built and pushed image $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.build.outputs.image_tag }} to ECR"
