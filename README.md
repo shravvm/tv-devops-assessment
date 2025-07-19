@@ -18,11 +18,17 @@ This repo contains my solution for the TurboVets DevOps Assessment. It includes:
 ## ✅ Features
 
 🐳 Dockerized Node.js application
+
 ⚙️ GitHub Actions CI/CD: Build → Push to ECR → Deploy to ECS
+
 ☁️ Infrastructure provisioned manually using cdktf deploy
+
 🚀 ECS (Fargate) deployment behind an Application Load Balancer
+
 🛡️ Secure networking with VPC, subnets, and security groups
+
 📦 Remote Terraform backend (S3 + DynamoDB)
+
 ✅ Public /health endpoint for liveness checks
 
 ## 💡 Deployment Strategy
