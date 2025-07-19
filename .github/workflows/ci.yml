@@ -119,7 +119,6 @@ jobs:
       - name: Update ECS Service
         uses: ./.github/actions/update-ecs-service
         with:
-<<<<<<< HEAD
           mask-password: true
 
        - name: Set up Docker Compose and test health
@@ -138,18 +137,6 @@ jobs:
 
       - id: build
         name: Build and tag Docker image
-=======
-          aws_region:     ${{ env.AWS_REGION }}
-          ecr_registry:   ${{ env.ECR_REGISTRY }}
-          ecr_repository: ${{ env.ECR_REPOSITORY }}
-          cluster:        ${{ env.ECS_CLUSTER }}
-          service:        ${{ env.ECS_SERVICE }}
-          image_tag:      ${{ env.FINAL_IMAGE_TAG }}
-          container_name: app
-      
-      - name: Update SSM Parameter with final image tag
-        if: ${{ success() }}
->>>>>>> main
         run: |
           aws ssm put-parameter \
             --name "/assessment/image_tag" \
