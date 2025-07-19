@@ -58,7 +58,7 @@ jobs:
               # Find the latest CI run matching the head SHA (event pull_request, no branch filter)
               RUN_DATA=$(gh run list \
                 -R ${{ github.repository }} \
-                --workflow CI.yml \
+                --workflow ci.yml \
                 --event pull_request \
                 --limit 20 \
                 --json number,headSha \
