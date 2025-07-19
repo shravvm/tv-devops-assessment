@@ -11,7 +11,8 @@ export interface EcsProps {
   readonly subnetIds:        string[];
   readonly securityGroupId:  string;
   readonly targetGroupArn:   string;
-  readonly awsRegion:        string;  // <-- New for dynamic log region
+  readonly awsRegion:        string;  //dynamic log region
+  readonly imageTag?:        string;
 }
 
 export class EcsModule extends Construct {
@@ -38,7 +39,7 @@ export class EcsModule extends Construct {
       containerDefinitions: JSON.stringify([
         {
           name: "app",
-          image: `${props.repositoryUrl}:latest`,
+          image: `${props.repositoryUrl}:${props.imageTag ?? "latest"}`,
           portMappings: [
             { containerPort: 3000, hostPort: 3000, protocol: "tcp" },
           ],

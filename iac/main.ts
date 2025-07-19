@@ -3,6 +3,7 @@ import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { Eip } from "@cdktf/provider-aws/lib/eip";
 import { NatGateway } from "@cdktf/provider-aws/lib/nat-gateway";
 import { Route } from "@cdktf/provider-aws/lib/route";
+import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
 
 import {
   StateBucketModule,
@@ -25,9 +26,33 @@ import {
 import { Route53Module } from "./modules/route53";
 import { config } from "./variables";
 
+export async function getImageTagFromSSM(): Promise<string> {
+  const ssm = new SSMClient({ region: "us-east-1" }); // or your region
+
+  const command = new GetParameterCommand({
+    Name: "/assessment/image-tag",
+    WithDecryption: true,
+  });
+
+  try {
+    const response = await ssm.send(command);
+    const value = response.Parameter?.Value;
+
+    if (!value) {
+      throw new Error("Image tag not found in SSM Parameter Store");
+    }
+
+    return value;
+  } catch (error) {
+    console.error("Failed to get image tag from SSM:", error);
+    throw error;
+  }
+}
 export class MyStack extends TerraformStack {
-  constructor(scope: App, id: string) {
+  constructor(scope: App, id: string, imageTag: string) {
     super(scope, id);
+
+    
 
     // Provider
     new AwsProvider(this, "aws", {
@@ -89,6 +114,7 @@ export class MyStack extends TerraformStack {
       securityGroupId: sg.ecsSecurityGroupId,
       targetGroupArn: alb.targetGroupArn,
       awsRegion: config.awsRegion,
+      imageTag: imageTag,
     });
 
     new Route53Module(this, "route53", {
@@ -105,8 +131,10 @@ export class MyStack extends TerraformStack {
   }
 }
 
-const app = new App();
-const stack = new MyStack(app, "tv-devops-assessment");
+async function main() {
+  const app = new App();
+  const imageTag = await getImageTagFromSSM();  // your async function
+  const stack = new MyStack(app, "tv-devops-assessment", imageTag);
 
 new S3Backend(stack, {
   bucket: config.backend.bucket,
@@ -117,3 +145,5 @@ new S3Backend(stack, {
 });
 
 app.synth();
+}
+main();
