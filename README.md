@@ -13,6 +13,8 @@ This repo contains my solution for the TurboVets DevOps Assessment. It includes:
 
 ## 📽 Walkthrough Video
 
+https://drive.google.com/file/d/1jFNUfULwsVc7hcAtWB97jd1ZDG9BrqPN/view?usp=sharing
+
 
 
 ## ✅ Features
