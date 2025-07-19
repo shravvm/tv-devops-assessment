@@ -3,6 +3,8 @@ name: CD
 on:
   push:
     branches: [main]
+    paths:
+      - 'app/**'
   workflow_dispatch:
     inputs:
       image_tag:
