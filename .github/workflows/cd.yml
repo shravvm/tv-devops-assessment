@@ -63,13 +63,17 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ env.AWS_REGION }}
 
-      - name: Update ECS Service
-        uses: ./.github/actions/update-ecs-service
+      - name: Render new task definition
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          aws_region:     ${{ env.AWS_REGION }}
-          ecr_registry:   ${{ env.ECR_REGISTRY }}
-          ecr_repository: ${{ env.ECR_REPOSITORY }}
-          cluster:        ${{ env.ECS_CLUSTER }}
-          service:        ${{ env.ECS_SERVICE }}
-          image_tag:      ${{ steps.tag.outputs.IMAGE_TAG }}
-          container_name: app
+          task-definition: .github/ecs/task-def.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.IMAGE_TAG }}
+
+      - name: Deploy to ECS service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          cluster: ${{ env.ECS_CLUSTER }}
+          service: ${{ env.ECS_SERVICE }}
+          task-definition: ${{ steps.render.outputs.task-definition }}
