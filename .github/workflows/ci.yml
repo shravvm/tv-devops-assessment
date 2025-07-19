@@ -41,7 +41,7 @@ jobs:
             exit 1
           fi
           echo "App is healthy"
-          docker-compose down
+          docker compose down
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
