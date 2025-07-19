@@ -126,3 +126,13 @@ jobs:
           service:        ${{ env.ECS_SERVICE }}
           image_tag:      ${{ env.FINAL_IMAGE_TAG }}
           container_name: app
+      
+      - name: Update SSM Parameter with final image tag
+        if: ${{ success() }}
+        run: |
+          aws ssm put-parameter \
+            --name "/assessment/image_tag" \
+            --value "$FINAL_IMAGE_TAG" \
+            --type String \
+            --overwrite \
+            --region ${{ env.AWS_REGION }}
